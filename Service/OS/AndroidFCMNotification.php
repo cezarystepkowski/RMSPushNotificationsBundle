@@ -2,14 +2,15 @@
 
 namespace RMS\PushNotificationsBundle\Service\OS;
 
+use Buzz\Browser;
+use Buzz\Client\AbstractCurl;
+use Buzz\Client\Curl;
+use Buzz\Client\MultiCurl;
 use Psr\Log\LoggerInterface;
-use RMS\PushNotificationsBundle\Exception\InvalidMessageTypeException,
-    RMS\PushNotificationsBundle\Message\AndroidMessage,
-    RMS\PushNotificationsBundle\Message\MessageInterface;
-use Buzz\Browser,
-    Buzz\Client\AbstractCurl,
-    Buzz\Client\Curl,
-    Buzz\Client\MultiCurl;
+use RMS\PushNotificationsBundle\Exception\DeviceNotRegisteredException;
+use RMS\PushNotificationsBundle\Exception\InvalidMessageTypeException;
+use RMS\PushNotificationsBundle\Message\AndroidMessage;
+use RMS\PushNotificationsBundle\Message\MessageInterface;
 
 class AndroidFCMNotification implements OSNotificationServiceInterface
 {
@@ -84,6 +85,7 @@ class AndroidFCMNotification implements OSNotificationServiceInterface
      * @param  \RMS\PushNotificationsBundle\Message\MessageInterface              $message
      * @throws \RMS\PushNotificationsBundle\Exception\InvalidMessageTypeException
      * @return bool
+     * @throws \RMS\PushNotificationsBundle\Exception\DeviceNotRegisteredException
      */
     public function send(MessageInterface $message)
     {
@@ -106,7 +108,7 @@ class AndroidFCMNotification implements OSNotificationServiceInterface
         // Perform the calls (in parallel)
         $this->responses = array();
 
-        foreach($message->getFCMIdentifiers() as $identifier){
+        foreach ($message->getFCMIdentifiers() as $identifier) {
             $data['to'] = $identifier;
             $this->responses[] = $this->browser->post($this->apiURL, $headers, json_encode($data));
         }
@@ -127,6 +129,9 @@ class AndroidFCMNotification implements OSNotificationServiceInterface
                     foreach ($message->results as $result) {
                         if (isset($result->error)) {
                             $this->logger->error($result->error);
+                            if ($result->error === 'NotRegistered') {
+                                throw new DeviceNotRegisteredException('Device not registered.');
+                            }
                         }
                     }
                 }
